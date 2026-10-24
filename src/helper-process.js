@@ -99,7 +99,7 @@ export class HelperProcess {
     const line = encodeMessage(message)
     if (!this.child || !this.spawned || !this.child.stdin.writable || this.child.stdin.destroyed) {
       if (!this.hasEverSpawned
-        || ![CompanionMessageKind.HELLO, CompanionMessageKind.STATE, CompanionMessageKind.TASK, CompanionMessageKind.PULSE, CompanionMessageKind.CONFIG, CompanionMessageKind.STATS].includes(message.kind)) {
+        || ![CompanionMessageKind.HELLO, CompanionMessageKind.STATE, CompanionMessageKind.TASK, CompanionMessageKind.PULSE, CompanionMessageKind.CONFIG, CompanionMessageKind.STATS, CompanionMessageKind.SOUND_PREVIEW].includes(message.kind)) {
         this.queue.push(line)
       }
       return

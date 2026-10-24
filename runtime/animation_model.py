@@ -7,6 +7,7 @@ success pulse always returns to the newest Agent state.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -376,3 +377,39 @@ class ActionScheduler:
         if len(self._queue) > self.MAX_QUEUE:
             lowest = min(self._queue, key=lambda item: (item.priority, -item.queued_at_ms))
             self._queue.remove(lowest)
+
+
+class MotionSmoother:
+    """One-pole low-pass filter for the procedural pet motion.
+
+    Every clip used to swap straight between unrelated formulas (idle at zero,
+    error shaking +/-4 px, walking swaying +/-2.5 degrees), so a pose change
+    read as an instant snap. Feeding the per-frame target through this filter
+    with a ~90 ms time constant turns that snap into a short eased transition
+    and also shaves the sharpest part off the continuous wobble. Frame timing
+    and sprite choice are untouched.
+    """
+
+    def __init__(self, tau_ms: float = 90.0) -> None:
+        self.tau_ms = max(1.0, float(tau_ms))
+        # (scale multiplier, angle degrees, offset x px, offset y px)
+        self.values: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+
+    def reset(self) -> None:
+        self.values = (1.0, 0.0, 0.0, 0.0)
+
+    def update(
+        self,
+        target: tuple[float, float, float, float],
+        elapsed_ms: float,
+    ) -> tuple[float, float, float, float]:
+        dt = max(0.0, min(200.0, float(elapsed_ms)))
+        if dt <= 0.0:
+            return self.values
+        alpha = 1.0 - math.exp(-dt / self.tau_ms)
+        current = self.values
+        self.values = tuple(
+            value + (goal - value) * alpha
+            for value, goal in zip(current, target)
+        )
+        return self.values

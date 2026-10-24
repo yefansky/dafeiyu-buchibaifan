@@ -12,6 +12,9 @@
 .PARAMETER StopHelper
   写入前结束 dsh-dafeiyu-helper 进程。
 
+.PARAMETER WithHelper
+  同时把本分支内的 onedir helper（exe + _internal）复制到安装目录，省去本机重建。
+
 .PARAMETER DryRun
   只打印计划。
 #>
@@ -19,6 +22,7 @@
 param(
     [string]$ProfileRoot = (Join-Path $env:USERPROFILE '.dsh\profiles\desktop'),
     [switch]$StopHelper,
+    [switch]$WithHelper,
     [switch]$DryRun
 )
 
@@ -39,7 +43,9 @@ $map = @(
     @('src/usage-stats.js', 'src\usage-stats.js'),
     @('runtime/helper.py', 'runtime\helper.py'),
     @('runtime/animation_model.py', 'runtime\animation_model.py'),
-    @('runtime/layout_store.py', 'runtime\layout_store.py')
+    @('runtime/completion_sound.py', 'runtime\completion_sound.py'),
+    @('runtime/layout_store.py', 'runtime\layout_store.py'),
+    @('package.json', 'package.json')
 )
 
 $stamp = Get-Date -Format 'yyyyMMddHHmmss'
@@ -79,7 +85,36 @@ if ($StopHelper -and -not $DryRun) {
     }
 }
 
+if ($WithHelper) {
+    $binSource = Join-Path $repoRoot 'runtime\bin\win32-x64'
+    $binTarget = Join-Path $pluginDir 'runtime\bin\win32-x64'
+    $sourceExe = Join-Path $binSource 'dsh-dafeiyu-helper.exe'
+    $sourceInternal = Join-Path $binSource '_internal'
+    $targetExe = Join-Path $binTarget 'dsh-dafeiyu-helper.exe'
+    $targetInternal = Join-Path $binTarget '_internal'
+    Write-Host '[helper] 复制 onedir exe + _internal' -ForegroundColor Green
+    if ($DryRun) {
+        Write-Host '[plan]   helper onedir（exe + _internal）'
+    }
+    elseif (-not (Test-Path -LiteralPath $sourceExe) -or -not (Test-Path -LiteralPath $sourceInternal)) {
+        Write-Host '[skip]   helper：仓库缺 onedir 产物' -ForegroundColor DarkYellow
+    }
+    else {
+        New-Item -ItemType Directory -Force -Path $binTarget | Out-Null
+        if (Test-Path -LiteralPath $targetExe) {
+            Copy-Item -LiteralPath $targetExe -Destination "$targetExe.bak-$stamp" -Force
+        }
+        Copy-Item -LiteralPath $sourceExe -Destination $targetExe -Force
+        if (Test-Path -LiteralPath $targetInternal) {
+            Move-Item -LiteralPath $targetInternal -Destination "$targetInternal.bak-$stamp" -Force
+        }
+        Copy-Item -LiteralPath $sourceInternal -Destination $targetInternal -Recurse -Force
+        $internalSize = (Get-ChildItem -LiteralPath $targetInternal -Recurse -File | Measure-Object Length -Sum).Sum
+        Write-Host ("[ok]     helper：exe {0:N0} 字节 + _internal {1:N0} 字节" -f (Get-Item $targetExe).Length, $internalSize) -ForegroundColor Green
+    }
+}
+
 Write-Host ''
-Write-Host "写入 $applied 个文件，跳过 $skipped 个。" -ForegroundColor Cyan
-Write-Host '接着运行 local-restore\rebuild-helper.ps1 重建 helper，然后重启 DSH Desktop。' -ForegroundColor Yellow
+Write-Host "写入 $applied 个源码文件，跳过 $skipped 个。" -ForegroundColor Cyan
+Write-Host '若未带 -WithHelper，接着运行 local-restore\rebuild-helper.ps1 重建 helper；然后重启 DSH Desktop。' -ForegroundColor Yellow
 exit 0

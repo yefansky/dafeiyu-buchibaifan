@@ -21,10 +21,12 @@ from pathlib import Path
 from typing import Any, TextIO
 
 try:
-    from .animation_model import ActionScheduler, AnimationModel
+    from .animation_model import ActionScheduler, AnimationModel, MotionSmoother
+    from .completion_sound import CompletionSound
     from .layout_store import default_layout_path, load_layout, save_layout
 except ImportError:
-    from animation_model import ActionScheduler, AnimationModel
+    from animation_model import ActionScheduler, AnimationModel, MotionSmoother
+    from completion_sound import CompletionSound
     from layout_store import default_layout_path, load_layout, save_layout
 
 
@@ -68,6 +70,16 @@ def env_int(name: str, fallback: int) -> int:
     except ValueError:
         return fallback
     return max(0, value)
+
+
+def env_float(name: str, fallback: float, low: float = 0.0, high: float = 1.0) -> float:
+    """Read a clamped float environment override (used by sound volume)."""
+    raw = os.environ.get(name, "")
+    try:
+        value = float(raw)
+    except ValueError:
+        return fallback
+    return max(low, min(high, value))
 
 
 def parse_message(line: str) -> dict[str, Any]:
@@ -794,6 +806,17 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                 dwell_ms=env_int("DSH_DAFEIYU_ACTION_DWELL_MS", 1500),
                 now_ms=self._now_ms(),
             )
+            # Completion chime: off by default, same palette/envelope as
+            # dsh-token-pet.  Lives in the native helper so it also works when
+            # the Web UI is in the background.
+            self.sound = CompletionSound(
+                enabled=os.environ.get("DSH_DAFEIYU_SOUND_ENABLED", "0") == "1",
+                theme=os.environ.get("DSH_DAFEIYU_SOUND_THEME", "chime"),
+                volume=env_float("DSH_DAFEIYU_SOUND_VOLUME", 1.0),
+            )
+            # Eased procedural motion: clip changes no longer snap the pose.
+            self.motion = MotionSmoother(tau_ms=90.0)
+            self.motion_values = self.motion.values
             self.show_stats = os.environ.get("DSH_DAFEIYU_SHOW_STATS", "1") != "0"
             self.stats_cap_cny = env_int("DSH_DAFEIYU_BALANCE_CAP_CNY", 1000)
             self.stats: dict[str, Any] = {}
@@ -926,6 +949,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                 self._show_question_dialog(message)
             elif kind == "question_close":
                 self._close_question()
+            elif kind == "sound_preview":
+                # Explicit "试听" from the settings panel; ignores the enabled
+                # gate but still respects the selected volume.
+                self.sound.play(force=True, now_ms=self._now_ms())
             elif kind in {"state", "pulse"}:
                 state = str(message.get("state", "IDLE"))
                 self._track_task_activity(state)
@@ -952,6 +979,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                         state,
                         ttl_ms,
                     )
+                    if state == "SUCCESS":
+                        # Only a successful turn-end produces this pulse; tool
+                        # errors and cancellations stay silent.
+                        self.sound.play(now_ms=self._now_ms())
                 else:
                     activity = None if self.reduced_motion else message.get("activity")
                     # The pose change is queued and paced; the text below is
@@ -1393,10 +1424,52 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                 cooldown_ms=message.get("actionCooldownMs"),
                 dwell_ms=message.get("actionDwellMs"),
             )
+            self.sound.configure(
+                enabled=message.get("soundEnabled"),
+                theme=message.get("soundTheme"),
+                volume=message.get("soundVolume"),
+            )
             self._apply_window_size()
             self._move_to_pet(self.pet_x, self.pet_y)
             self._sync_stats_bar()
             self._save_layout()
+
+        def _motion_targets(self) -> tuple[float, float, float, float]:
+            """Per-frame procedural pose target (smoothed by MotionSmoother)."""
+            phase = time.monotonic()
+            motion = None if self.reduced_motion else self.model.active_clip.motion
+            scale_extra = 1.0
+            angle = 0.0
+            offset_x = 0.0
+            offset_y = 0.0
+            clip_name = self.model.active_clip_name
+            if motion == "breathe":
+                # 独立版同款：缩放呼吸 + 轻摇摆（无位移）
+                scale_extra = 1.0 + 0.02 * math.sin(phase * 2.5)
+                angle = math.sin(phase * 2.5) * 1.5
+            elif motion == "think":
+                offset_y = math.sin(phase * 2.8) * 3
+                angle = math.sin(phase * 1.3) * 0.8
+            elif motion == "work":
+                offset_x = math.sin(phase * 5.4) * 3
+                angle = math.sin(phase * 3.1) * 1.0
+            elif motion == "wait":
+                offset_y = math.sin(phase * 1.8) * 1
+                angle = math.sin(phase * 1.2) * 0.8
+            elif motion == "bounce":
+                offset_y = -abs(math.sin(phase * 5.2)) * 8
+                scale_extra = 1.0 + 0.02 * math.sin(phase * 5.2)
+            elif motion in {"shake", "dizzy"}:
+                offset_x = math.sin(phase * 11.0) * 4
+                angle = math.sin(phase * 11.0) * 1.5
+            elif motion == "float":
+                offset_y = math.sin(phase * 3.0) * 4
+                angle = math.sin(phase * 1.6) * 1.0
+            # Give walking clips a light bob and quick sway without changing frame timing.
+            if clip_name in ("working_search", "working_command"):
+                offset_y = -abs(math.sin(phase * 4.5)) * 5
+                angle = math.sin(phase * 9.0) * 2.5
+            return (scale_extra, angle, offset_x * self.scale, offset_y * self.scale)
 
         def _tick(self) -> None:
             now_ms = self._now_ms()
@@ -1406,6 +1479,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
             model_elapsed = 0 if self.reduced_motion and self.model.active_clip.loop else elapsed_ms
             self.model.advance(model_elapsed, now_ms)
             self.scheduler.tick(now_ms)
+            # Ease the procedural pose instead of swapping formulas instantly.
+            self.motion_values = self.motion.update(self._motion_targets(), elapsed_ms)
             # Preserve crisp facial expressions; soften larger pose and frame changes.
             EXPRESSION_CLIPS = {"blink", "glance"}
             frame_name = self.model.frame
@@ -1417,7 +1492,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                 else:
                     self.fade_from_pixmap = self.pixmaps.get(self.last_frame_name)
                     self.fade_started = time.monotonic()
-                    self.fade_duration = 0.10 if clip_changed else 0.045
+                    self.fade_duration = 0.16 if clip_changed else 0.06
                 self.last_clip_name = self.model.active_clip_name
                 self.last_frame_name = frame_name
             if had_pulse and self.model.pulse_state is None:
@@ -1923,60 +1998,29 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, quest
                 )
 
             pixmap = self.pixmaps[self.model.frame]
-            phase = time.monotonic()
-            motion = self.model.active_clip.motion
-            if self.reduced_motion:
-                motion = None
-            scale_extra = 1.0
-            angle = 0.0
-            offset_x = 0
-            offset_y = 0
-            clip_name = self.model.active_clip_name
-            if motion == "breathe":
-                # 独立版同款：缩放呼吸 + 轻摇摆（无位移）
-                scale_extra = 1.0 + 0.02 * math.sin(phase * 2.5)
-                angle = math.sin(phase * 2.5) * 1.5
-            elif motion == "think":
-                offset_y = math.sin(phase * 2.8) * 3
-                angle = math.sin(phase * 1.3) * 0.8
-            elif motion == "work":
-                offset_x = math.sin(phase * 5.4) * 3
-                angle = math.sin(phase * 3.1) * 1.0
-            elif motion == "wait":
-                offset_y = math.sin(phase * 1.8) * 1
-                angle = math.sin(phase * 1.2) * 0.8
-            elif motion == "bounce":
-                offset_y = -abs(math.sin(phase * 5.2)) * 8
-                scale_extra = 1.0 + 0.02 * math.sin(phase * 5.2)
-            elif motion in {"shake", "dizzy"}:
-                offset_x = math.sin(phase * 11.0) * 4
-                angle = math.sin(phase * 11.0) * 1.5
-            elif motion == "float":
-                offset_y = math.sin(phase * 3.0) * 4
-                angle = math.sin(phase * 1.6) * 1.0
-            # Give walking clips a light bob and quick sway without changing frame timing.
-            if clip_name in ("working_search", "working_command"):
-                offset_y = -abs(math.sin(phase * 4.5)) * 5
-                angle = math.sin(phase * 9.0) * 2.5
-
-            # Scale procedural offsets with the character while retaining subpixel motion.
-            offset_x = offset_x * self.scale
-            offset_y = offset_y * self.scale
+            scale_extra, angle, offset_x, offset_y = self.motion_values
 
             fade_alpha = 1.0
             if self.fade_from_pixmap is not None and not self.fade_from_pixmap.isNull():
                 fade_elapsed = time.monotonic() - self.fade_started
                 if fade_elapsed < self.fade_duration:
-                    fade_alpha = min(1.0, (fade_elapsed / self.fade_duration) ** 0.7)
+                    t = max(0.0, min(1.0, fade_elapsed / self.fade_duration))
+                    fade_alpha = t * t * (3 - 2 * t)
                 else:
                     self.fade_from_pixmap = None
 
             def draw_pet(pix: QPixmap, alpha: float) -> None:
+                # Anchor every sprite to the manifest's fixed canvas: centred
+                # horizontally, feet on the bottom edge. The source PNGs are
+                # trimmed to different widths (168-238 px) and heights
+                # (202-260 px); anchoring each frame by its own bitmap used to
+                # shift the whole character sideways between clips.
+                box_width, _box_height = self._pet_size()
                 base_width = pix.width() * self.scale
                 base_height = pix.height() * self.scale
                 pw = base_width * scale_extra
                 ph = base_height * scale_extra
-                x = self._pet_offset_x(base_width) + (base_width - pw) / 2 + offset_x
+                x = self._pet_offset_x(box_width) + (box_width - pw) / 2 + offset_x
                 y = self.height() - ph - 8 + offset_y
                 if bubble_height > y:
                     y = bubble_height

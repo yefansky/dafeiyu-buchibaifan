@@ -18,7 +18,7 @@ param(
     [string]$ProfileRoot = (Join-Path $env:USERPROFILE '.dsh\profiles\desktop')
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginDir = Join-Path $ProfileRoot 'node_modules\@piaobo_gz\dafeiyu-buchibaifan'
@@ -48,7 +48,8 @@ Get-Process dsh-dafeiyu-helper -ErrorAction SilentlyContinue | Stop-Process -For
 Write-Host '构建中（约 1-3 分钟）…' -ForegroundColor Cyan
 & $Python @pyArgs -m PyInstaller --noconfirm --clean --onedir --console --name dsh-dafeiyu-helper `
     --distpath $dist --workpath $work --specpath $spec `
-    --add-data "$assets;assets" --paths (Join-Path $repoRoot 'runtime') $entry
+    --add-data "$assets;assets" --paths (Join-Path $repoRoot 'runtime') `
+    --hidden-import completion_sound --hidden-import winsound $entry 2>&1 | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 失败，退出码 $LASTEXITCODE" }
 
 $builtDir = Join-Path $dist 'dsh-dafeiyu-helper'

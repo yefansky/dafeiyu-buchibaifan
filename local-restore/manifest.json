@@ -1,65 +1,75 @@
 {
-    "plugin":  {
-                   "name":  "@piaobo_gz/dafeiyu-buchibaifan",
-                   "version":  "1.0.7",
-                   "profile":  "desktop"
-               },
-    "branch":  "backup/desktop-1.0.7-patched",
-    "upstream":  {
-                     "repo":  "piaobo123/dafeiyu-buchibaifan",
-                     "baseCommit":  "4af6e3f3c528aeb1136ba7df1b371748cb53e3ac"
-                 },
-    "pr":  "https://github.com/piaobo123/dafeiyu-buchibaifan/pull/6",
-    "capturedAt":  "2026-10-24T23:39:46+08:00",
-    "files":  [
-                  {
-                      "target":  "cordis.patch.yml",
-                      "sha256":  "1bda1845b297b24208dbe076dc990b99be1b1df01002a45b5f34334bf5fa5758",
-                      "size":  589
-                  },
-                  {
-                      "target":  "lib/client.js",
-                      "sha256":  "91103b5e6e449b495df24894ab02bcdf7e148e324cf8cc0c82bd8b839f1715b6",
-                      "size":  6796
-                  },
-                  {
-                      "target":  "src/index.js",
-                      "sha256":  "177a52a85aaa2b4b257d0027222caecd7c1548a0b56699a279301e3ef0d7ae09",
-                      "size":  27992
-                  },
-                  {
-                      "target":  "src/protocol.js",
-                      "sha256":  "80fa2400509803ee4ccc2f94abac2c35ffb02690b73e1d2838c03568ecd3609c",
-                      "size":  1783
-                  },
-                  {
-                      "target":  "src/helper-process.js",
-                      "sha256":  "30c1aba604be7f4804ed7395871391d7850c30e2fde21cb14215bcc0c4cb1eef",
-                      "size":  8617
-                  },
-                  {
-                      "target":  "src/usage-stats.js",
-                      "sha256":  "22ffb2e27cf42eda0f1c23e4b28b60ee16e9fa7221da406f703331881e1e7d2f",
-                      "size":  12357
-                  },
-                  {
-                      "target":  "runtime/helper.py",
-                      "sha256":  "987407059f04dcae4e0f6e692220130770eb76df2e3637b1ac7949fd3a420b94",
-                      "size":  104106
-                  },
-                  {
-                      "target":  "runtime/animation_model.py",
-                      "sha256":  "63718c220a260a516f1f89aea77f21543ba80d016f8078ba313bfd9564f62152",
-                      "size":  14695
-                  },
-                  {
-                      "target":  "runtime/layout_store.py",
-                      "sha256":  "04e059ad2d5340081edb5d6f6168b12016d72a1516ef428ed468104ec24095c3",
-                      "size":  2652
-                  }
-              ],
-    "helper":  {
-                   "mode":  "onedir",
-                   "note":  "onedir 产物随构建环境变化，仅校验 exe 与 _internal 是否存在"
-               }
+    "plugin": {
+        "name": "@piaobo_gz/dafeiyu-buchibaifan",
+        "version": "1.0.7",
+        "profile": "desktop"
+    },
+    "branch": "backup/desktop-1.0.7-patched",
+    "upstream": {
+        "repo": "piaobo123/dafeiyu-buchibaifan",
+        "baseCommit": "4af6e3f3c528aeb1136ba7df1b371748cb53e3ac"
+    },
+    "pr": "https://github.com/piaobo123/dafeiyu-buchibaifan/pull/6",
+    "capturedAt": "2026-10-24T23:42:39+08:00",
+    "files": [
+        {
+            "target": "cordis.patch.yml",
+            "sha256": "1bda1845b297b24208dbe076dc990b99be1b1df01002a45b5f34334bf5fa5758",
+            "size": 589
+        },
+        {
+            "target": "lib/client.js",
+            "sha256": "8c5158e90c1bd2fbc37691e586927e23f4793a2cbdbc71844d4fab7fe62e191d",
+            "size": 16137
+        },
+        {
+            "target": "src/index.js",
+            "sha256": "fbe5c63dfb0f1c3b0c011aa53807253e751b9a9237e9c6ba775bcc89176c56cc",
+            "size": 31766
+        },
+        {
+            "target": "src/protocol.js",
+            "sha256": "5b8c43d14013deb9fb104c554d86e55a28deb4afdf514f0ace9e781375e311fc",
+            "size": 1880
+        },
+        {
+            "target": "src/helper-process.js",
+            "sha256": "5260a85ff10fc573683f9e739b1d9b11e47995df2854ce2624ae0ab4fc114abb",
+            "size": 8890
+        },
+        {
+            "target": "src/usage-stats.js",
+            "sha256": "22ffb2e27cf42eda0f1c23e4b28b60ee16e9fa7221da406f703331881e1e7d2f",
+            "size": 12358
+        },
+        {
+            "target": "runtime/helper.py",
+            "sha256": "ea8f65777f56b4eeae03ab15a297e8c8d20247dcc5e5414484417fff1def4f88",
+            "size": 109215
+        },
+        {
+            "target": "runtime/animation_model.py",
+            "sha256": "7f4a8ce4b6c1e19aea4a0d5de9825a69916502fa6ac553714a96474cd6d5be4f",
+            "size": 16052
+        },
+        {
+            "target": "runtime/completion_sound.py",
+            "sha256": "7b3c9b2a686627e63d7c4b993b8257e3ae8fb2da98f686a05d4d43e86d283b17",
+            "size": 6886
+        },
+        {
+            "target": "runtime/layout_store.py",
+            "sha256": "04e059ad2d5340081edb5d6f6168b12016d72a1516ef428ed468104ec24095c3",
+            "size": 2731
+        },
+        {
+            "target": "package.json",
+            "sha256": "02cd1c2cf2fb281e4d95255fa08b06a42da005e982d02b52f9f011569543c2eb",
+            "size": 2754
+        }
+    ],
+    "helper": {
+        "mode": "onedir",
+        "note": "onedir 产物随构建环境变化，仅校验 exe 与 _internal 是否存在"
+    }
 }
